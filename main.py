@@ -1,9 +1,84 @@
-from fastapi import FastAPI, Query, Body
+from fastapi import FastAPI, Query
 from pydantic import BaseModel, Field 
 from typing import Optional
 from typing import List
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.tree import DecisionTreeClassifier
+import pandas as pd
+import joblib
+
+# FastAPI 인스턴스 생성
 app = FastAPI()
+
+# 샘플 데이터셋 생성 (여기서는 가상의 데이터 사용)
+data = {
+    'email': [
+        'Congratulations! You have won a lottery.',
+        'Dear friend, I am writing to you regarding...',
+        'Free access to the best online courses!',
+        'Meeting at 10 AM tomorrow.',
+        'Get paid to work from home.',
+        'Don’t forget to attend the team meeting.',
+        'You are selected for a special prize!',
+        'Please find the attached report.',
+        'Claim your free gift now!',
+        'Let’s catch up for coffee next week.',
+        '축하합니다! 당신은 복권에 당첨되었습니다.',
+        '친애하는 친구, 당신에게 연락 드립니다...',
+        '최고의 온라인 강좌에 무료로 접근하세요!',
+        '내일 오전 10시에 회의가 있습니다.',
+        '재택근무로 돈을 벌 수 있습니다.',
+        '팀 회의에 꼭 참석하세요.',
+        '특별 상품이 선정되었습니다!',
+        '첨부된 보고서를 확인해 주세요.',
+        '지금 무료 선물을 신청하세요!',
+        '다음 주에 커피 한 잔 하실래요?'
+    ],
+    'label': [
+        'spam', 'ham', 'spam', 'ham', 'spam',
+        'ham', 'spam', 'ham', 'spam', 'ham',
+        'spam', 'ham', 'spam', 'ham', 'spam',
+        'ham', 'spam', 'ham', 'spam', 'ham'
+    ]
+}
+
+# DataFrame 생성
+df = pd.DataFrame(data)
+
+# 특징과 레이블 분리
+X = df['email']
+y = df['label']
+
+# 데이터 전처리: 텍스트를 벡터로 변환
+vectorizer = CountVectorizer()
+X_vectorized = vectorizer.fit_transform(X)
+
+# 의사결정 트리 모델 생성 및 학습
+model = DecisionTreeClassifier(random_state=42)
+model.fit(X_vectorized, y)
+
+# 모델과 벡터라이저를 파일로 저장
+joblib.dump(model, 'spam_classifier.joblib')
+joblib.dump(vectorizer, 'vectorizer.joblib')
+
+# Pydantic 모델 정의
+class Email(BaseModel):
+    content: str
+
+# API 엔드포인트 정의
+@app.post("/predict/")
+async def predict(email: Email):
+    # 이메일 텍스트 벡터화
+    vectorizer = joblib.load('vectorizer.joblib')
+    model = joblib.load('spam_classifier.joblib')
+    email_vectorized = vectorizer.transform([email.content])
+    
+    # 예측 수행
+    prediction = model.predict(email_vectorized)
+    
+    return {"prediction": prediction[0]}
+
 
 class Item(BaseModel) : #이게 pydantic model임
     name : str
